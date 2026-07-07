@@ -26,7 +26,18 @@ powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 #   アンインストール: 同コマンドに -Uninstall
 ```
 
-インストール後、Word / PowerPoint を再起動してフォント **「Ninter」** を選択。日本語を選んで **Ctrl+I** で自然な斜体、**Ctrl+B** で太字。
+インストール後、Word / PowerPoint を再起動してフォントを選択。日本語を選んで **Ctrl+I** で自然な斜体、**Ctrl+B** で太字。
+
+### 2つのファミリー（詰めなし / 詰めあり）
+
+MS ゴシック / MS Pゴシックの慣習にならい、**字詰めの有無で2ファミリー**を用意します（PowerPoint は OpenType の詰め機能を個別に切り替えられないため、別ファミリーにするのが確実）。
+
+| ファミリー | 字詰め | かな | 約物（、「」） | 用途の目安 |
+|---|---|---|---|---|
+| **Ninter** | なし（全角ベタ） | 全角 | 全角 | グリッド組み・本文・等幅感 |
+| **Ninter P** | あり（palt） | 詰め | 半角 | 見出し・タイトル・締まった印象 |
+
+どちらも9ウェイト×斜体＝18面、計36面。プレビュワーの「詰め」トグルで両者を即比較できます。
 
 ---
 
@@ -61,6 +72,7 @@ python build.py --slant 3 --inter-yshift -8 --inter-scale 1.0
 | `inter_weight_offset` | `inter_weights` に無いウェイトへ一律加算（例 `-100` で Inter を細く） | `0` |
 | `cjk_tighten` | Noto の `palt`（プロポーショナル字幅）を既定字幅に焼き込む割合 0–1。かな・約物が詰まり、漢字は全角維持。約物は半角化 | `1.0` |
 | `cjk_tracking` | 全 CJK グリフを一律に詰める追加量（units、+で詰め） | `0` |
+| `variants` | 生成するファミリー群。各要素が `family` と `cjk_tighten` を上書き（既定は Ninter=ベタ / Ninter P=詰め の2種） | 2種 |
 | `weights` | ビルドするウェイト | `100..900` |
 | `opsz` | Inter の光学サイズ軸 | `14` |
 | `subset` | 未使用グリフを削ってファイル縮小 | `true` |
@@ -68,6 +80,16 @@ python build.py --slant 3 --inter-yshift -8 --inter-scale 1.0
 **Inter を和文に合わせて細くする**：Inter は Noto より太く見えるので、`inter_weights` で和文ウェイトごとに Inter の wght を下げます（例 `"400": 300`）。プレビュワーの「欧文ウェイト（独立調整）」で各ウェイトの最適値を探し「この対応を記録」→ config にコピー。値は連続値（小数可, 100–900）。
 
 CLI で個別上書きも可能: `python build.py --weights 400 700 --slant 5.5 --inter-weight-offset -100`
+
+### ビルドの並列化
+
+36面を**マルチプロセスで並列ビルド**します（`ProcessPoolExecutor`）。各面のインスタンス化・マージ・サブセットはほぼ純Python＝GIL拘束のため、ThreadPool では速くならず**プロセス並列が正解**です。ワーカー数は**空きRAMから自動決定**（各ワーカーが Noto 全字で約0.6GB使うため、コア数ではなくメモリが律速）。
+
+```bash
+python build.py            # 自動（cores-2 と 空きRAM/0.7 の小さい方, 上限8）
+python build.py --jobs 8   # 明示指定（RAMに余裕があれば増やす）
+python build.py --jobs 1   # 逐次（デバッグ用）
+```
 
 ---
 

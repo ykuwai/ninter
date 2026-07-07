@@ -13,3 +13,6 @@ Thumbs.db
 
 # Note: build/*.ttf (the built Ninter fonts) ARE tracked on purpose,
 # so the repo is directly installable without a rebuild.
+
+# User test artifacts (not source)
+*.pptx

@@ -70,6 +70,10 @@ def load_config(cli: argparse.Namespace) -> dict:
         "inter_scale": 1.0, "inter_tracking": 0,
         "inter_weights": {}, "inter_weight_offset": 0,
         "cjk_tighten": 1.0, "cjk_tracking": 0, "defer_cjk_symbols": True,
+        "variants": [
+            {"family": "Ninter", "cjk_tighten": 0.0},     # no tsume (full-width beta)
+            {"family": "Ninter P", "cjk_tighten": 1.0},   # tsume (palt baked)
+        ],
         "weights": [100, 200, 300, 400, 500, 600, 700, 800, 900],
         "opsz": 14, "subset": True, "version": "1.000",
     }
@@ -96,6 +100,16 @@ def load_config(cli: argparse.Namespace) -> dict:
         cfg["weights"] = cli.weights
     if cli.no_subset:
         cfg["subset"] = False
+    # Ad-hoc single-variant build when --family / --cjk-tighten given on the CLI.
+    fam = getattr(cli, "family", None)
+    only = getattr(cli, "only_variant", None)
+    if fam or cli.cjk_tighten is not None:
+        cfg["variants"] = [{"family": fam or cfg["family"], "cjk_tighten": cfg["cjk_tighten"]}]
+    elif only:
+        cfg["variants"] = [v for v in cfg["variants"] if v["family"] == only] or cfg["variants"]
+    # each variant must carry a family; default cjk_tighten from cfg if omitted
+    for v in cfg["variants"]:
+        v.setdefault("cjk_tighten", cfg["cjk_tighten"])
     return cfg
 
 
@@ -386,16 +400,16 @@ def fix_metrics(font: TTFont) -> None:
     hhea.lineGap = 0
 
 
-def family_subfamily(weight: int, italic: bool):
+def family_subfamily(weight: int, italic: bool, family: str):
     """RIBBI grouping used by legacy GDI style-linking."""
     if weight in (400, 700):
-        fam = "Ninter"
+        fam = family
         if weight == 400:
             sub = "Italic" if italic else "Regular"
         else:
             sub = "Bold Italic" if italic else "Bold"
     else:
-        fam = "Ninter " + WEIGHT_NAMES[weight]
+        fam = f"{family} {WEIGHT_NAMES[weight]}"
         sub = "Italic" if italic else "Regular"
     return fam, sub
 
@@ -409,11 +423,12 @@ def typographic_subfamily(weight: int, italic: bool) -> str:
 
 
 def set_names(font: TTFont, weight: int, italic: bool, cfg: dict) -> None:
-    family, subfamily = family_subfamily(weight, italic)
+    base = cfg["family"]                       # "Ninter" or "Ninter P"
+    family, subfamily = family_subfamily(weight, italic, base)
     typo_sub = typographic_subfamily(weight, italic)
     version = cfg["version"]
-    full = f"Ninter {typo_sub}"
-    ps = "Ninter-" + typo_sub.replace(" ", "")
+    full = f"{base} {typo_sub}"
+    ps = base.replace(" ", "") + "-" + typo_sub.replace(" ", "")
     unique = f"{version};NINT;{ps}"
 
     name = font["name"]
@@ -435,8 +450,8 @@ def set_names(font: TTFont, weight: int, italic: bool, cfg: dict) -> None:
     s(13, "This Font Software is licensed under the SIL Open Font License, "
           "Version 1.1. Inherited from Noto Sans JP and Inter.")
     s(14, OFL_URL)
-    # Typographic (WWS) family/subfamily: ties every weight to one "Ninter".
-    s(16, "Ninter")
+    # Typographic (WWS) family/subfamily: ties every weight to one base family.
+    s(16, base)
     s(17, typo_sub)
 
 
@@ -497,8 +512,11 @@ def subset_reachable(font: TTFont) -> TTFont:
 # --------------------------------------------------------------------------- #
 def build_face(weight: int, italic: bool, cfg: dict, tmpdir: str) -> str:
     tag = f"{WEIGHT_NAMES[weight]}{'Italic' if italic else ''}"
-    inter_path = os.path.join(tmpdir, f"inter_{tag}.ttf")
-    noto_path = os.path.join(tmpdir, f"noto_{tag}.ttf")
+    # temp names include the family so parallel workers building the two variants of
+    # the same weight can't clobber each other's intermediates.
+    stem = f"{cfg['family'].replace(' ', '')}_{tag}"
+    inter_path = os.path.join(tmpdir, f"inter_{stem}.ttf")
+    noto_path = os.path.join(tmpdir, f"noto_{stem}.ttf")
     prepare_inter(weight, italic, cfg, inter_path)
     prepare_noto(weight, italic, cfg, noto_path)
 
@@ -516,10 +534,46 @@ def build_face(weight: int, italic: bool, cfg: dict, tmpdir: str) -> str:
         set_names(merged, weight, italic, cfg)
         set_style_bits(merged, weight, italic, cfg)
 
-    out_name = "Ninter-" + tag + ".ttf"
+    out_name = cfg["family"].replace(" ", "") + "-" + tag + ".ttf"
     out_path = os.path.join(OUT, out_name)
     merged.save(out_path)
     return out_name
+
+
+def _build_worker(task):
+    """Top-level (picklable) worker for ProcessPoolExecutor. Builds one face and
+    returns (out_name, size_kb). Args are simple values only, results are strings —
+    no fontTools objects cross the process boundary (avoids pickling deadlocks)."""
+    weight, italic, vcfg, tmpdir = task
+    out = build_face(weight, italic, vcfg, tmpdir)
+    return out, os.path.getsize(os.path.join(OUT, out)) // 1024
+
+
+def _free_ram_gb() -> float:
+    """Best-effort free physical RAM in GB (Windows), else a safe assumption."""
+    try:
+        import ctypes
+
+        class MS(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+        m = MS(); m.dwLength = ctypes.sizeof(MS)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+        return m.ullAvailPhys / (1024 ** 3)
+    except Exception:
+        return 4.0
+
+
+def default_jobs() -> int:
+    """Memory-bound, not core-bound: each worker instantiates the full Noto CJK
+    (~0.6 GB peak). Use as many workers as both cores-2 and free RAM allow, capped
+    at 8. Lower --jobs if you keep other memory-heavy apps open."""
+    by_cpu = (os.cpu_count() or 2) - 2
+    by_ram = int(_free_ram_gb() / 0.7)
+    return max(1, min(by_cpu, by_ram, 8))
 
 
 def main() -> None:
@@ -534,7 +588,14 @@ def main() -> None:
                     help="0..1 fraction of palt proportional metrics to bake (kana/punct tighten)")
     ap.add_argument("--cjk-tracking", type=int,
                     help="Uniformly tighten every CJK advance by N units (re-centered)")
+    ap.add_argument("--family", type=str,
+                    help="Ad-hoc single-variant build with this family name")
+    ap.add_argument("--only-variant", type=str,
+                    help="Build only the config variant with this family name")
     ap.add_argument("--no-subset", action="store_true", help="Keep unused glyphs (faster, larger)")
+    ap.add_argument("--jobs", "-j", type=int, default=None,
+                    help="Parallel worker processes (default: cores-2, capped 6). "
+                         "Lower it if RAM is tight; 1 = sequential.")
     ap.add_argument("--upright-only", action="store_true")
     ap.add_argument("--italic-only", action="store_true")
     cli = ap.parse_args()
@@ -554,18 +615,41 @@ def main() -> None:
         styles.append(True)
 
     wmap = ", ".join(f"{w}->{resolve_inter_weight(w, cfg):g}" for w in cfg["weights"])
+    variants = cfg["variants"]
     print(f"Ninter build | slant={cfg['slant_angle']} deg  "
           f"inter_yshift={cfg['inter_yshift']}  inter_scale={cfg['inter_scale']}  "
           f"subset={cfg['subset']}")
     print(f"  inter weight map (Noto->Inter): {wmap}")
-    print(f"  cjk_tighten(palt)={cfg.get('cjk_tighten',1.0)}  cjk_tracking={cfg.get('cjk_tracking',0)}")
-    tmpdir = tempfile.mkdtemp(prefix="ninter_")
-    try:
+    print(f"  variants: " + ", ".join(f"{v['family']}(palt={v.get('cjk_tighten',1.0)})" for v in variants))
+
+    tasks = []
+    for variant in variants:
+        vcfg = {**cfg, **variant}   # variant overrides family + cjk_tighten
         for weight in cfg["weights"]:
             for italic in styles:
-                out = build_face(weight, italic, cfg, tmpdir)
-                sz = os.path.getsize(os.path.join(OUT, out)) // 1024
-                print(f"  built {out:32s} {sz:>6d} KB")
+                tasks.append((weight, italic, vcfg, None))  # tmpdir filled in below
+
+    jobs = cli.jobs if cli.jobs is not None else int(cfg.get("jobs") or default_jobs())
+    jobs = max(1, min(jobs, len(tasks)))
+    print(f"  {len(tasks)} faces on {jobs} worker(s)")
+
+    tmpdir = tempfile.mkdtemp(prefix="ninter_")
+    tasks = [(w, i, c, tmpdir) for (w, i, c, _) in tasks]
+    done = 0
+    try:
+        if jobs == 1:
+            for t in tasks:
+                out, sz = _build_worker(t)
+                done += 1
+                print(f"  [{done:>2}/{len(tasks)}] {out:34s} {sz:>6d} KB")
+        else:
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+            with ProcessPoolExecutor(max_workers=jobs) as ex:
+                futs = {ex.submit(_build_worker, t): t for t in tasks}
+                for fut in as_completed(futs):
+                    out, sz = fut.result()
+                    done += 1
+                    print(f"  [{done:>2}/{len(tasks)}] {out:34s} {sz:>6d} KB")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
     print(f"Done -> {OUT}")

@@ -17,12 +17,16 @@ $buildDir = Join-Path $root "build"
 $fontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
 $regKey = "HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
 
-# "Ninter-SemiBoldItalic" -> "Ninter SemiBold Italic"  (-creplace = case-SENSITIVE;
-# plain -replace is case-insensitive and would mangle the name to "S em iB ol d").
+# "NinterP-SemiBoldItalic" -> "Ninter P SemiBold Italic". The file stem is the
+# PostScript family: "<FamilyNoSpaces>-<Style>". Split on the first '-', then insert
+# spaces at camelCase boundaries in BOTH the family and the style.
+# (-creplace = case-SENSITIVE; plain -replace is case-insensitive and would mangle
+# the name to "S em iB ol d".)
 function Get-FaceName([string]$stem) {
-  $s = $stem -replace '^Ninter-', ''
-  $s = $s -creplace '([a-z])([A-Z])', '$1 $2'
-  return "Ninter $s"
+  $parts = $stem -split '-', 2
+  $fam = $parts[0] -creplace '([a-z])([A-Z])', '$1 $2'      # NinterP -> "Ninter P"
+  $style = if ($parts.Count -gt 1) { ($parts[1] -creplace '([a-z])([A-Z])', '$1 $2') } else { "" }
+  return ("$fam $style").Trim()
 }
 
 function Broadcast-FontChange {
@@ -37,7 +41,7 @@ public static class NinterFC {
   [NinterFC]::SendMessageTimeout([IntPtr]0xffff, 0x1D, [IntPtr]::Zero, [IntPtr]::Zero, 2, 1000, [ref]$r) | Out-Null
 }
 
-$fonts = Get-ChildItem -Path $buildDir -Filter "Ninter-*.ttf" -ErrorAction SilentlyContinue
+$fonts = Get-ChildItem -Path $buildDir -Filter "Ninter*.ttf" -ErrorAction SilentlyContinue
 if (-not $fonts) { Write-Host "No built fonts in $buildDir. Run: python build.py" -ForegroundColor Yellow; exit 1 }
 if (-not (Test-Path $fontDir)) { New-Item -ItemType Directory -Path $fontDir -Force | Out-Null }
 
