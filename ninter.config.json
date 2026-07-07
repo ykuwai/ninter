@@ -1,0 +1,28 @@
+{
+  "_comment": "Ninter build config. Tuned via the previewer (preview/index.html), then used by build.py. Spatial values are font units at 1000 upm.",
+  "_comment_inter_weights": "Independent Inter weight per Noto (output) weight. Inter looks heavier than Noto at the same nominal weight, so map each Noto weight to a (usually lighter) Inter wght. Keys are the output/Noto weight; values are the Inter wght axis value (100-900, fractional OK). inter_weight_offset is added on top for any weight not in the map.",
+  "family": "Ninter",
+  "slant_angle": 5.5,
+  "inter_yshift": -45,
+  "inter_scale": 1.11,
+  "inter_tracking": 0,
+  "inter_weights": {
+    "100": 150,
+    "200": 160,
+    "300": 200,
+    "400": 350,
+    "500": 450,
+    "600": 480,
+    "700": 600,
+    "800": 650,
+    "900": 770
+  },
+  "inter_weight_offset": 0,
+  "_comment_cjk": "cjk_tighten = fraction (0..1) of Noto's palt proportional metrics baked into default advances: tightens kana & makes punctuation half-width while kanji stay full-width. cjk_tracking = extra uniform tightening (units) on every CJK glyph.",
+  "cjk_tighten": 1.0,
+  "cjk_tracking": 0,
+  "weights": [100, 200, 300, 400, 500, 600, 700, 800, 900],
+  "opsz": 14,
+  "subset": true,
+  "version": "1.000"
+}

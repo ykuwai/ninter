@@ -1,0 +1,14 @@
+# Upstream OFL source fonts — re-fetchable via scripts/download_sources.py
+sources/
+
+# Logs / scratch / caches
+build/*.log
+scratch_*
+*.tmp
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# Note: build/*.ttf (the built Ninter fonts) ARE tracked on purpose,
+# so the repo is directly installable without a rebuild.

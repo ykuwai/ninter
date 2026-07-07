@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ninter Previewer</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --ink:#e8eaf0; --muted:#9aa3b2;
+    --line:#2a2f3a; --accent:#6ea8fe; --accent2:#f7a072;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f5f7; --panel:#ffffff; --panel2:#eef0f4; --ink:#1a1c22; --muted:#606875;
+    --line:#dfe2e8; --accent:#2f6bff; --accent2:#c85a24;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:system-ui,"Segoe UI",sans-serif;
+       display:grid;grid-template-columns:340px 1fr;height:100vh;overflow:hidden}
+
+  /* ---- source fonts (live, no rebuild needed) ---- */
+  @font-face{font-family:"InterPrev";font-weight:100 900;font-style:normal;
+    src:url("../sources/Inter[opsz,wght].ttf") format("truetype");}
+  @font-face{font-family:"InterPrev";font-weight:100 900;font-style:italic;
+    src:url("../sources/Inter-Italic[opsz,wght].ttf") format("truetype");}
+  @font-face{font-family:"NotoPrev";font-weight:100 900;font-style:normal;
+    src:url("../sources/NotoSansJP[wght].ttf") format("truetype");}
+  /* ---- baked font (real build output, for comparison) ---- */
+  @font-face{font-family:"NinterReal";font-weight:400;font-style:normal;
+    src:url("../build/Ninter-Regular.ttf") format("truetype");}
+  @font-face{font-family:"NinterReal";font-weight:400;font-style:italic;
+    src:url("../build/Ninter-RegularItalic.ttf") format("truetype");}
+  @font-face{font-family:"NinterReal";font-weight:700;font-style:normal;
+    src:url("../build/Ninter-Bold.ttf") format("truetype");}
+  @font-face{font-family:"NinterReal";font-weight:700;font-style:italic;
+    src:url("../build/Ninter-BoldItalic.ttf") format("truetype");}
+
+  /* ---- control panel ---- */
+  aside{background:var(--panel);border-right:1px solid var(--line);padding:16px;
+        overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:16px;margin:0 0 2px;letter-spacing:.5px}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:11px;margin:0}
+  .grp{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .grp h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);
+          margin:0 0 10px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 0}
+  .row label{font-size:12px;color:var(--ink)}
+  .row .val{font-size:11px;color:var(--accent2);font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .slider{margin:6px 0 2px}
+  select,textarea,button{font:inherit;color:var(--ink);background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+  textarea{width:100%;min-height:70px;resize:vertical;line-height:1.5}
+  button{cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  .toggle{display:flex;gap:6px}
+  .toggle button{flex:1;font-size:12px;padding:6px}
+  .toggle button.on{background:var(--accent);border-color:var(--accent);color:#08101f}
+  :root[data-theme="light"] .toggle button.on{color:#fff}
+  .export{font-family:ui-monospace,"Cascadia Code",monospace;font-size:11px;white-space:pre;
+    background:#0a0c10;color:#c9d3e6;border-radius:8px;padding:10px;overflow-x:auto;line-height:1.5}
+  :root[data-theme="light"] .export{background:#101318;color:#d7deec}
+  .btnrow{display:flex;gap:8px}
+  .btnrow button{flex:1;font-size:12px}
+
+  /* ---- stage ---- */
+  main{overflow-y:auto;padding:30px 42px 80px}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:20px;
+       position:sticky;top:0;background:var(--bg);padding:6px 0 12px;z-index:5}
+  .bar .modes{display:flex;gap:6px}
+  .bar .modes button{font-size:11px;padding:5px 10px}
+  .bar .modes button.on{background:var(--accent);border-color:var(--accent);color:#08101f}
+  :root[data-theme="light"] .bar .modes button.on{color:#fff}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+        padding:26px 30px;margin-bottom:20px}
+  .card .tag{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);
+    margin-bottom:12px;display:flex;justify-content:space-between}
+  .canvas{line-height:1.7;word-break:break-word}
+  /* latin run: font swap + baseline + scale + tracking applied inline */
+  .latin{font-family:"InterPrev";font-style:normal}
+  .canvas.ital .latin{font-style:italic}
+  .cjk{font-family:"NotoPrev"}
+  .cjk-i{font-family:"NotoPrev";display:inline-block}
+  .real{font-family:"NinterReal"}
+  .muted-note{color:var(--muted);font-size:12px;margin:2px 0 0}
+  code{font-family:ui-monospace,monospace;background:var(--panel2);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<aside>
+  <div>
+    <h1><span>Ninter</span> Previewer</h1>
+    <p class="sub">混植フォントの微調整を、再ビルドせずにライブ確認</p>
+  </div>
+
+  <div class="grp">
+    <h2>スタイル</h2>
+    <div class="row"><label>和文ウェイト (Noto)</label><span class="val" id="wV">400</span></div>
+    <input class="slider" type="range" id="wght" min="100" max="900" step="10" value="400">
+    <div class="row"><label>Italic (Ctrl+I)</label>
+      <div class="toggle" id="italTog"><button data-v="0" class="on">通常</button><button data-v="1">斜体</button></div>
+    </div>
+    <div class="row"><label>サイズ</label><span class="val" id="szV">40px</span></div>
+    <input class="slider" type="range" id="size" min="14" max="96" step="1" value="40">
+  </div>
+
+  <div class="grp">
+    <h2>欧文ウェイト（独立調整）</h2>
+    <div class="row"><label>Inter を独立させる</label>
+      <div class="toggle" id="linkTog"><button data-v="1" class="on">追従</button><button data-v="0">独立</button></div>
+    </div>
+    <div class="row"><label>Inter ウェイト</label><span class="val" id="iwV">400</span></div>
+    <input class="slider" type="range" id="iwght" min="100" max="900" step="5" value="400">
+    <p class="muted-note" id="pairNote">Noto 400 → Inter 400</p>
+    <div class="btnrow" style="margin-top:6px">
+      <button id="recPair">この対応を記録</button>
+      <button id="clrPair">対応表クリア</button>
+    </div>
+    <div class="export" id="mapOut" style="margin-top:8px;max-height:120px;overflow:auto"></div>
+    <p class="muted-note">各和文ウェイトで太さが合う Inter 値を探して「記録」。全部埋めたら config に反映されます。</p>
+  </div>
+
+  <div class="grp">
+    <h2>和文の詰め</h2>
+    <div class="row"><label>palt（かな・約物詰め）</label>
+      <div class="toggle" id="paltTog"><button data-v="0">OFF</button><button data-v="1" class="on">ON</button></div>
+    </div>
+    <div class="row"><label>CJK 追加字間</label><span class="val" id="ctV">0</span></div>
+    <input class="slider" type="range" id="ctrack" min="-60" max="40" step="1" value="0">
+    <p class="muted-note">palt はデザイナー設計の詰め（漢字は全角維持）。追加字間は全CJK一律（+で詰め）。units@1000upm。</p>
+  </div>
+
+  <div class="grp">
+    <h2>イタリック傾斜（CJK）</h2>
+    <div class="row"><label>傾斜角</label><span class="val" id="slV">5.5°</span></div>
+    <input class="slider" type="range" id="slant" min="0" max="12" step="0.5" value="5.5">
+    <p class="muted-note">Latinは Inter 本来のイタリック(-9.4°)を使用。CJKはこの角度でシアー。</p>
+  </div>
+
+  <div class="grp">
+    <h2>Inter 位置合わせ（混植バランス）</h2>
+    <div class="row"><label>ベースライン上下</label><span class="val" id="yV">-45</span></div>
+    <input class="slider" type="range" id="yshift" min="-120" max="60" step="1" value="-45">
+    <div class="row"><label>スケール</label><span class="val" id="scV">1.000</span></div>
+    <input class="slider" type="range" id="scale" min="0.90" max="1.60" step="0.005" value="1.0">
+    <div class="row"><label>トラッキング</label><span class="val" id="trV">0</span></div>
+    <input class="slider" type="range" id="track" min="-40" max="80" step="1" value="0">
+    <p class="muted-note">units（1000upm基準）。値はそのまま build に渡せます。</p>
+  </div>
+
+  <div class="grp">
+    <h2>サンプル</h2>
+    <select id="preset" style="width:100%;margin-bottom:8px">
+      <option value="0">見出し（混植）</option>
+      <option value="1">本文（長文）</option>
+      <option value="2">英語多め</option>
+      <option value="3">数字・記号</option>
+      <option value="4">パングラム</option>
+    </select>
+    <textarea id="text"></textarea>
+  </div>
+
+  <div class="grp">
+    <h2>エクスポート</h2>
+    <div class="export" id="cfgOut"></div>
+    <div class="btnrow" style="margin-top:8px">
+      <button id="copyCfg">config をコピー</button>
+      <button id="copyCmd">build cmd をコピー</button>
+    </div>
+  </div>
+
+  <div class="btnrow">
+    <button id="theme">🌓 テーマ</button>
+    <button id="reset">リセット</button>
+  </div>
+</aside>
+
+<main>
+  <div class="bar">
+    <div>
+      <strong id="titleFam">Ninter</strong>
+      <span class="muted-note" id="titleStyle"></span>
+    </div>
+    <div class="modes">
+      <button data-mode="live" class="on">ライブ調整</button>
+      <button data-mode="compare">実フォントと比較</button>
+    </div>
+  </div>
+
+  <div class="card" id="liveCard">
+    <div class="tag"><span>LIVE — 元フォントから合成（調整が即反映）</span><span id="tagMetrics"></span></div>
+    <div class="canvas" id="live"></div>
+  </div>
+
+  <div class="card" id="realCard" style="display:none">
+    <div class="tag"><span>BAKED — build/ の実フォント（Ninter Regular/Bold ± Italic）</span></div>
+    <div class="canvas real" id="real"></div>
+    <p class="muted-note">※ 比較ペインは実際にビルド済みの 400/700 のみ。ライブ側で角度やベースラインを詰めてから <code>python build.py</code> で焼き込み → ここが更新されます。</p>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const SAMPLES = [
+  "躍動する Ninter — 混植フォント\n日本語と Alphabet が美しく調和する。",
+  "このフォントパックは Noto Sans JP と Inter を合成し、Ctrl+I で日本語にも自然なイタリックを与えます。PowerPoint の擬似イタリック(18°)ではなく、わずか3°の傾きで躍動感のある強調が可能になります。",
+  "Design is not just what it looks like and feels like. Design is how it works. — スティーブ・ジョブズ の言葉。UI/UX と タイポグラフィ。",
+  "2026年7月7日 pH 7.4 ¥12,800 (税込) / 42.195km を 3:14'09\" で完走。#100点 @Ninter <OK>",
+  "The quick brown fox jumps over the lazy dog. いろはにほへと ちりぬるを 和文と欧文の混植テスト 0123456789."
+];
+const CJK = /[　-〿぀-ゟ゠-ヿ㐀-䶿一-鿿豈-﫿＀-￯ㇰ-ㇿ←-⇿∀-⋿]/;
+// Treat ASCII + common Latin punctuation as "Inter" territory; everything CJK-ish -> Noto.
+function isCJK(ch){ return CJK.test(ch); }
+
+const state = {
+  wght:400, iwght:400, link:1, ital:0, size:40, slant:5.5, yshift:-45,
+  scale:1.0, track:0, palt:1, ctrack:0, preset:0, mode:"live"
+};
+// accumulated Noto->Inter weight pairings the user records
+const interMap = {100:100,200:200,300:300,400:400,500:500,600:600,700:700,800:800,900:900};
+
+function splitRuns(text){
+  // returns array of {cjk:bool, s:string}
+  const runs=[]; let cur=null;
+  for(const ch of text){
+    const c = ch==="\n" ? (cur&&cur.cjk) : isCJK(ch); // newline stays in current run type
+    if(ch==="\n"){ runs.push({br:true}); cur=null; continue; }
+    const k=isCJK(ch);
+    if(!cur||cur.cjk!==k){ cur={cjk:k,s:""}; runs.push(cur); }
+    cur.s+=ch;
+  }
+  return runs;
+}
+
+function render(){
+  const t=$("#text").value;
+  const runs=splitRuns(t);
+  const opsz=14;
+  const interVar=`'wght' ${state.iwght}, 'opsz' ${opsz}`;
+  const notoVar=`'wght' ${state.wght}`;
+  const yEm=(state.yshift/1000);      // baseline shift (units@1000upm -> em); + = up
+  const trackEm=(state.track/1000);
+  const ital=state.ital;
+
+  const box=$("#live");
+  box.className="canvas"+(ital?" ital":"");
+  box.style.fontSize=state.size+"px";
+  box.innerHTML="";
+  for(const r of runs){
+    if(r.br){ box.appendChild(document.createElement("br")); continue; }
+    if(r.cjk){
+      const feat = state.palt ? '"palt" 1' : '"palt" 0';
+      const ls = state.ctrack ? (-state.ctrack/1000)+"em" : "";
+      if(ital){
+        // per-char skew so wrapping still works
+        for(const ch of r.s){
+          if(ch===" "){ box.appendChild(document.createTextNode(" ")); continue; }
+          const s=document.createElement("span");
+          s.className="cjk-i"; s.textContent=ch;
+          s.style.fontVariationSettings=notoVar;
+          s.style.fontFeatureSettings=feat;
+          if(ls) s.style.marginRight=ls;
+          s.style.transform=`skewX(-${state.slant}deg)`;
+          box.appendChild(s);
+        }
+      }else{
+        const s=document.createElement("span");
+        s.className="cjk"; s.textContent=r.s;
+        s.style.fontVariationSettings=notoVar;
+        s.style.fontFeatureSettings=feat;
+        if(ls) s.style.letterSpacing=ls;
+        box.appendChild(s);
+      }
+    }else{
+      const s=document.createElement("span");
+      s.className="latin"; s.textContent=r.s;
+      s.style.fontVariationSettings=interVar;
+      s.style.verticalAlign=(yEm)+"em";
+      s.style.fontSize=(state.scale*100)+"%";
+      if(trackEm) s.style.letterSpacing=trackEm+"em";
+      box.appendChild(s);
+    }
+  }
+
+  // comparison pane (real baked font)
+  const real=$("#real");
+  real.style.fontSize=state.size+"px";
+  real.style.fontWeight=(state.wght>=600?700:400);
+  real.style.fontStyle=ital?"italic":"normal";
+  real.textContent=t;
+
+  // labels
+  $("#wV").textContent=state.wght;
+  $("#iwV").textContent=Math.round(state.iwght);
+  $("#szV").textContent=state.size+"px";
+  $("#slV").textContent=state.slant.toFixed(1)+"°";
+  $("#yV").textContent=(state.yshift>0?"+":"")+state.yshift;
+  $("#scV").textContent=state.scale.toFixed(3);
+  $("#trV").textContent=(state.track>0?"+":"")+state.track;
+  $("#ctV").textContent=(state.ctrack>0?"+":"")+state.ctrack;
+  $("#pairNote").textContent=`Noto ${state.wght} → Inter ${Math.round(state.iwght)}`;
+  $("#titleStyle").textContent=`— Noto ${state.wght}/Inter ${Math.round(state.iwght)} · ${ital?"Italic":"Upright"} · slant ${state.slant}°`;
+  $("#tagMetrics").textContent=`yshift ${state.yshift} · scale ${state.scale.toFixed(3)} · track ${state.track}`;
+  $("#mapOut").textContent="inter_weights "+JSON.stringify(interMap);
+
+  // export
+  const cfg={
+    family:"Ninter", slant_angle:state.slant, inter_yshift:state.yshift,
+    inter_scale:Number(state.scale.toFixed(3)), inter_tracking:state.track,
+    inter_weights:interMap, inter_weight_offset:0,
+    cjk_tighten:state.palt?1.0:0.0, cjk_tracking:state.ctrack,
+    weights:[100,200,300,400,500,600,700,800,900], opsz:14, subset:true, version:"1.000"
+  };
+  $("#cfgOut").textContent=JSON.stringify(cfg,null,2);
+}
+
+function bind(id,key,transform){
+  const el=$("#"+id);
+  el.addEventListener("input",()=>{ state[key]=transform?transform(el.value):Number(el.value); render(); });
+}
+bind("size","size"); bind("slant","slant");
+bind("yshift","yshift"); bind("scale","scale"); bind("track","track"); bind("ctrack","ctrack");
+
+$("#paltTog").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  state.palt=Number(b.dataset.v); setToggle("#paltTog",state.palt); render();
+});
+
+// Noto weight: when linked, Inter follows; when independent, recall the recorded pairing.
+$("#wght").addEventListener("input",()=>{
+  state.wght=Number($("#wght").value);
+  state.iwght = state.link ? state.wght : (interMap[state.wght] ?? state.wght);
+  $("#iwght").value=state.iwght;
+  render();
+});
+// Inter weight: dragging it means the user wants independent control -> unlink.
+$("#iwght").addEventListener("input",()=>{
+  state.iwght=Number($("#iwght").value);
+  if(state.link){ state.link=0; setToggle("#linkTog",0); }
+  render();
+});
+function setToggle(sel,v){ [...$(sel).children].forEach(x=>x.classList.toggle("on",Number(x.dataset.v)===v)); }
+$("#linkTog").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  state.link=Number(b.dataset.v); setToggle("#linkTog",state.link);
+  if(state.link){ state.iwght=state.wght; $("#iwght").value=state.iwght; }
+  render();
+});
+$("#recPair").addEventListener("click",e=>{
+  interMap[state.wght]=Math.round(state.iwght);
+  const o=e.target.textContent; e.target.textContent=`✓ ${state.wght}→${Math.round(state.iwght)} 記録`;
+  setTimeout(()=>e.target.textContent=o,1200); render();
+});
+$("#clrPair").addEventListener("click",()=>{
+  [100,200,300,400,500,600,700,800,900].forEach(w=>interMap[w]=w);
+  if(state.link) state.iwght=state.wght; render();
+});
+
+$("#italTog").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  state.ital=Number(b.dataset.v);
+  [...$("#italTog").children].forEach(x=>x.classList.toggle("on",x===b));
+  render();
+});
+$("#preset").addEventListener("change",e=>{ $("#text").value=SAMPLES[e.target.value]; render(); });
+$("#text").addEventListener("input",render);
+
+document.querySelectorAll(".modes button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll(".modes button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    const m=b.dataset.mode;
+    $("#liveCard").style.display = m==="compare" ? "block":"block";
+    $("#realCard").style.display = m==="compare" ? "block":"none";
+  });
+});
+
+$("#theme").addEventListener("click",()=>{
+  const r=document.documentElement;
+  r.dataset.theme = r.dataset.theme==="light" ? "" : "light";
+});
+$("#reset").addEventListener("click",()=>{
+  Object.assign(state,{wght:400,iwght:400,link:1,ital:0,size:40,slant:5.5,yshift:-45,scale:1.0,track:0,palt:1,ctrack:0});
+  $("#wght").value=400;$("#iwght").value=400;$("#size").value=40;$("#slant").value=5.5;
+  $("#yshift").value=-45;$("#scale").value=1.0;$("#track").value=0;$("#ctrack").value=0;
+  setToggle("#linkTog",1); setToggle("#paltTog",1);
+  [...$("#italTog").children].forEach((x,i)=>x.classList.toggle("on",i===0));
+  render();
+});
+async function copy(txt,btn){ try{await navigator.clipboard.writeText(txt);const o=btn.textContent;btn.textContent="✓ コピーしました";setTimeout(()=>btn.textContent=o,1200);}catch(e){alert("コピー失敗: "+e);} }
+$("#copyCfg").addEventListener("click",e=>copy($("#cfgOut").textContent,e.target));
+$("#copyCmd").addEventListener("click",e=>copy(
+  `python build.py --slant ${state.slant} --inter-yshift ${state.yshift} --inter-scale ${state.scale.toFixed(3)} --cjk-tighten ${state.palt?1:0} --cjk-tracking ${state.ctrack}`,
+  e.target));
+
+$("#text").value=SAMPLES[0];
+render();
+</script>
+</body>
+</html>
