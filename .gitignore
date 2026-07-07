@@ -1,9 +1,10 @@
 # Upstream OFL source fonts — re-fetchable via scripts/download_sources.py
 sources/
 
-# Logs / scratch / caches
+# Logs / scratch / caches / session state
 build/*.log
 scratch_*
+.keepawake/
 *.tmp
 __pycache__/
 *.pyc

@@ -69,7 +69,7 @@ def load_config(cli: argparse.Namespace) -> dict:
         "family": "Ninter", "slant_angle": 3.0, "inter_yshift": 0,
         "inter_scale": 1.0, "inter_tracking": 0,
         "inter_weights": {}, "inter_weight_offset": 0,
-        "cjk_tighten": 1.0, "cjk_tracking": 0,
+        "cjk_tighten": 1.0, "cjk_tracking": 0, "defer_cjk_symbols": True,
         "weights": [100, 200, 300, 400, 500, 600, 700, 800, 900],
         "opsz": 14, "subset": True, "version": "1.000",
     }
@@ -97,6 +97,47 @@ def load_config(cli: argparse.Namespace) -> dict:
     if cli.no_subset:
         cfg["subset"] = False
     return cfg
+
+
+# CJK-context blocks that should be full-width from Noto (consistent, never Inter's
+# oversized/proportional versions): Roman numerals, Enclosed Alphanumerics,
+# Box Drawing + Block Elements + Geometric Shapes.
+DEFER_BLOCKS = [(0x2160, 0x2188), (0x2460, 0x24FF), (0x2500, 0x25FF)]
+# Any other Inter glyph wider than this (units @1000upm) is a designed-large symbol
+# (enclosing marks, oversized dingbats) that clashes with CJK context -> use Noto.
+DEFER_SIZE_THRESHOLD = 1350
+
+_NOTO_CPS = None
+
+
+def noto_codepoints() -> set:
+    global _NOTO_CPS
+    if _NOTO_CPS is None:
+        _NOTO_CPS = set(TTFont(NOTO).getBestCmap().keys())
+    return _NOTO_CPS
+
+
+def defer_cjk_symbols_to_noto(inter_font: TTFont) -> int:
+    """Drop from Inter's cmap the CJK-context symbols (circled numbers ①②, Roman
+    numerals, box/geometric shapes, and any oversized symbol) that Noto also covers,
+    so the merge takes Noto's consistent full-width versions instead of Inter's
+    oversized ones. Call while Inter is at 1000 upm, before inter_scale."""
+    noto = noto_codepoints()
+    hmtx = inter_font["hmtx"]
+    remove = set()
+    for table in inter_font["cmap"].tables:
+        for cp, gn in table.cmap.items():
+            if cp not in noto or cp < 0x2000:
+                continue
+            in_block = any(lo <= cp <= hi for lo, hi in DEFER_BLOCKS)
+            oversized = gn in hmtx.metrics and hmtx[gn][0] > DEFER_SIZE_THRESHOLD
+            if in_block or oversized:
+                remove.add(cp)
+    for table in inter_font["cmap"].tables:
+        for cp in list(table.cmap.keys()):
+            if cp in remove:
+                del table.cmap[cp]
+    return len(remove)
 
 
 def resolve_inter_weight(weight: int, cfg: dict) -> float:
@@ -182,6 +223,8 @@ def prepare_inter(weight: int, italic: bool, cfg: dict, path: str) -> None:
         font, {"wght": inter_wght, "opsz": cfg["opsz"]}, inplace=True)
     scale_upem(font, 1000)
     cleanup_tables(font)
+    if cfg.get("defer_cjk_symbols", True):
+        defer_cjk_symbols_to_noto(font)
     transform_inter(font, int(cfg["inter_yshift"]), float(cfg["inter_scale"]))
     font.save(path)
 
@@ -293,6 +336,41 @@ def prepare_noto(weight: int, italic: bool, cfg: dict, path: str) -> None:
 # --------------------------------------------------------------------------- #
 # Metrics + naming
 # --------------------------------------------------------------------------- #
+def unify_script_features(font: TTFont) -> None:
+    """Make Inter's Latin OpenType features (kern, liga, ss01-20, cv*, tnum, frac, …)
+    reachable from the CJK OpenType scripts (kana/hani). Apps like Illustrator shape a
+    mixed Japanese+Latin run under the CJK script, where — without this — Inter's
+    features registered only under 'latn' silently stop working. We union the latn/DFLT
+    feature set into the kana/hani LangSys so those features still apply to Latin glyphs
+    inside a CJK-shaped run. (gen-interface-jp issue #1.)"""
+    CJK_SCRIPTS = {"kana", "hani", "hang"}
+    SRC_SCRIPTS = {"latn", "DFLT"}
+    for tag in ("GSUB", "GPOS"):
+        if tag not in font:
+            continue
+        sl = font[tag].table.ScriptList
+        src = set()
+        for sr in sl.ScriptRecord:
+            if sr.ScriptTag.strip() in SRC_SCRIPTS:
+                langsyses = [sr.Script.DefaultLangSys] + [r.LangSys for r in sr.Script.LangSysRecord]
+                for ls in langsyses:
+                    if ls:
+                        src.update(ls.FeatureIndex)
+        if not src:
+            continue
+        add = sorted(src)
+        for sr in sl.ScriptRecord:
+            if sr.ScriptTag.strip() not in CJK_SCRIPTS:
+                continue
+            langsyses = [sr.Script.DefaultLangSys] + [r.LangSys for r in sr.Script.LangSysRecord]
+            for ls in langsyses:
+                if not ls:
+                    continue
+                merged = list(dict.fromkeys(list(ls.FeatureIndex) + add))
+                ls.FeatureIndex = merged
+                ls.FeatureCount = len(merged)
+
+
 def fix_metrics(font: TTFont) -> None:
     os2 = font["OS/2"]
     hhea = font["hhea"]
@@ -426,6 +504,7 @@ def build_face(weight: int, italic: bool, cfg: dict, tmpdir: str) -> str:
 
     merged = Merger().merge([inter_path, noto_path])  # Inter first -> Latin wins
 
+    unify_script_features(merged)   # Latin features reachable from kana/hani (gen #1)
     fix_metrics(merged)
     set_names(merged, weight, italic, cfg)
     set_style_bits(merged, weight, italic, cfg)

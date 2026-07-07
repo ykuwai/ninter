@@ -79,10 +79,12 @@ CLI で個別上書きも可能: `python build.py --weights 400 700 --slant 5.5 
 2. **upm 統一** — Inter を 2048→1000 に縮小（Noto に合わせる）。縮小後、Inter の cap/x-height は Noto とほぼ一致（727/546 vs 733/543）。
 3. **Inter 位置合わせ** — `inter_yshift` / `inter_scale` を適用。
 4. **CJK スラント** — イタリック面のみ Noto を `slant_angle` でシアー（アウトライン＋合成グリフのオフセットを変換、送り幅は保持）。
-5. **マージ** — `fontTools.merge`（Inter を先に）で Latin は Inter、CJK は Noto。cmap 競合は先勝ちで Latin が Inter になる。
-6. **メトリクス統一** — 行送りは Noto に合わせ（typo 880/-120、win 1160/288）、CJK が切れない 1em 行に。
-7. **命名 / スタイル連結** — RIBBI（Ninter: R/B/I/BI）＋ タイポグラフィック/WWS（全9ウェイトを Ninter に）。`fsSelection` / `macStyle` / `usWeightClass` / `italicAngle` を設定。
-8. **サブセット**（任意）— Noto 側の重複 Latin など到達不能グリフを削除。
+5. **CJK文脈記号を Noto へ** — 丸数字（①②）・ローマ数字・囲み/幾何記号や、Inter が特大に描く記号は、Inter の cmap から外して **Noto の全角版**を採用（`defer_cjk_symbols`）。Latin の約物（— … ‰ ™ 等）は Inter のまま。
+6. **マージ** — `fontTools.merge`（Inter を先に）で Latin は Inter、CJK は Noto。cmap 競合は先勝ちで Latin が Inter になる。
+7. **スクリプト機能の統一** — Inter の Latin OpenType 機能（kern, liga, ss01-08, cv*, tnum, frac 等）を **CJK スクリプト（kana/hani）からも参照可能に**する。Illustrator 等は混植行を CJK スクリプトでシェーピングするため、これをしないと同一行に和文がある英字で欧文機能が無効化される（gen-interface-jp #1 の教訓）。
+8. **メトリクス統一** — 行送りは Noto に合わせ（typo 880/-120、win 1160/288）、CJK が切れない 1em 行に。
+9. **命名 / スタイル連結** — RIBBI（Ninter: R/B/I/BI）＋ タイポグラフィック/WWS（全9ウェイトを Ninter に）。`fsSelection` / `macStyle` / `usWeightClass` / `italicAngle` を設定。名前テーブルは再構築し空レコードを残さない。
+10. **サブセット**（任意）— Noto 側の重複 Latin など到達不能グリフを削除。
 
 > fontforge ではなく **fontTools** に一本化しています（name table の精密制御が Ctrl+I 連結に有利、スクリプト再現性、追加インストール不要のため）。
 
@@ -94,6 +96,20 @@ CLI で個別上書きも可能: `python build.py --weights 400 700 --slant 5.5 
 - **Latin と CJK の傾き差**（Inter -9.4° / CJK 3°）は仕様どおり。気になる場合はプレビュワーで CJK 角を上げて調整。
 - Noto の一部 OpenType 機能（`vert`, `palt` 等）はマージ時に整理。基本の横組み表示は cmap 経由で問題なし。
 - ファイルは 1 面あたり約 5〜6MB（CJK が主）。全 18 面で約 100MB。
+
+## ロードマップ（今後の候補）
+
+類似先行プロジェクト [gen-interface-jp](https://github.com/yamatoiizuka/gen-interface-jp)（Inter × Noto Sans JP, 8ウェイト・イタリック無し）の Issue/リリース履歴から得た改善候補：
+
+- **異体字セレクタ/ZWJ のゼロ幅グリフ**（U+200C/200D, FE00–FE0F）を追加し、絵文字隣接の豆腐を回避。
+- **全角/半角変換（fwid/hwid）** など、合成でリネームされたグリフに対する feature 再ターゲットの検証。
+- **小書き仮名（っゃょ）** が palt 焼き込み後に詰まりすぎていないか確認・個別補正。
+- **Web 配信（WOFF2 + unicode-range サブセット + CSS 自動生成）**、npm/CDN 配布。
+- **見出し用 Display ファミリー**（Inter opsz=32 系）の追加。
+- **約物半角のオプション化**（`ss09` 型スタイリスティックセット）で詰めを固定せず選択可能に。
+- ビルド並列化する場合は ThreadPoolExecutor（プロセス spawn のデッドロック回避）。
+
+Ninter が既に優位な点：**9ウェイト（Black 有）・イタリック対応・palt 焼き込み・Windows/PowerPoint 最適化**。
 
 ## ライセンス
 
