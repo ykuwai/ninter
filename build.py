@@ -70,6 +70,7 @@ def load_config(cli: argparse.Namespace) -> dict:
         "inter_scale": 1.0, "inter_tracking": 0,
         "inter_weights": {}, "inter_weight_offset": 0,
         "cjk_tighten": 1.0, "cjk_tracking": 0, "defer_cjk_symbols": True,
+        "numeric_colon": True,
         "variants": [
             {"family": "Ninter", "cjk_tighten": 0.0},     # no tsume (full-width beta)
             {"family": "Ninter P", "cjk_tighten": 1.0},   # tsume (palt baked)
@@ -154,6 +155,27 @@ def defer_cjk_symbols_to_noto(inter_font: TTFont) -> int:
     return len(remove)
 
 
+def use_numeric_colon(font: TTFont) -> None:
+    """Bake Inter's figure-height colon into the default `colon` glyph.
+
+    Inter's plain `colon` is a low *text* colon (dots centered near x-height); the
+    number-flanked colon in times/ratios like 12:34 is a separate `colon.case` glyph,
+    vertically centered on the digits, that Inter normally swaps in via `case`/`calt`.
+    In Ninter that substitution is unreliable: PowerPoint doesn't consistently apply
+    those features (especially in a CJK-shaped run), and our subset can drop the
+    unencoded `colon.case` outright. Since this font's half-width colon is overwhelmingly
+    used between figures, copy the raised outline into the default `colon` (and the
+    tabular `colon.tf`) so it is always figure-centered, regardless of app support.
+    Call while Inter is at 1000 upm, before the vertical shift/scale. (issue #1)"""
+    import copy
+    glyf = font["glyf"]
+    hmtx = font["hmtx"]
+    for base, raised in (("colon", "colon.case"), ("colon.tf", "colon.case.tf")):
+        if base in glyf and raised in glyf:
+            glyf[base] = copy.deepcopy(glyf[raised])  # deep copy: transform_inter later
+            hmtx[base] = hmtx[raised]                  # touches each glyph name once
+
+
 def resolve_inter_weight(weight: int, cfg: dict) -> float:
     """Inter's wght for a given Noto/output weight. Inter reads heavier at the same
     nominal weight, so this lets Inter be dialed independently (per-weight map first,
@@ -187,9 +209,13 @@ def transform_inter(font: TTFont, yshift: int, scale: float) -> None:
     for name in glyf.keys():
         g = glyf[name]
         if g.isComposite():
+            # Component offsets only scale — the yshift is already applied to the
+            # referenced base glyph's own points, so adding it here too would shift a
+            # composite (accented letters, the colon) down by yshift twice, dropping
+            # it below the simple glyphs (digits) it should align with. (issue #1)
             for comp in g.components:
                 comp.x = round(comp.x * scale)
-                comp.y = round(comp.y * scale + yshift)
+                comp.y = round(comp.y * scale)
         elif hasattr(g, "coordinates"):
             for i, (x, y) in enumerate(g.coordinates):
                 g.coordinates[i] = (round(x * scale), round(y * scale + yshift))
@@ -239,6 +265,8 @@ def prepare_inter(weight: int, italic: bool, cfg: dict, path: str) -> None:
     cleanup_tables(font)
     if cfg.get("defer_cjk_symbols", True):
         defer_cjk_symbols_to_noto(font)
+    if cfg.get("numeric_colon", True):
+        use_numeric_colon(font)
     transform_inter(font, int(cfg["inter_yshift"]), float(cfg["inter_scale"]))
     font.save(path)
 

@@ -23,6 +23,8 @@
   "cjk_tracking": 0,
   "_comment_defer": "Route CJK-context symbols (circled numbers ①②, Roman numerals, box/geometric shapes, and any oversized symbol Inter draws large) to Noto's full-width glyphs instead of Inter's oversized ones. Latin punctuation stays Inter.",
   "defer_cjk_symbols": true,
+  "_comment_colon": "Bake Inter's figure-centered colon (colon.case) into the default ':' so times/ratios like 12:34 sit centered on the digits. Inter's plain colon is a low text colon and PowerPoint doesn't reliably apply the case/calt substitution that would raise it. Set false to keep the low text colon.",
+  "numeric_colon": true,
   "_comment_variants": "Build two families following the MS Gothic / MS PGothic convention: plain 'Ninter' = full-width (no tsume, cjk_tighten 0), 'Ninter P' = proportional/tightened (palt baked, cjk_tighten 1.0). Each variant overrides family + cjk_tighten.",
   "variants": [
     { "family": "Ninter", "cjk_tighten": 0.0 },
