@@ -155,6 +155,33 @@ def defer_cjk_symbols_to_noto(inter_font: TTFont) -> int:
     return len(remove)
 
 
+def defer_latin_to_inter(noto_font: TTFont, inter_cps: set) -> int:
+    """Drop from Noto's cmap every codepoint Inter still maps, BEFORE the merge.
+
+    fontTools.merge resolves a cmap conflict (both fonts map the same codepoint) by
+    keeping the *first* font's glyph — Inter — and then **synthesising a `locl` lookup**
+    that substitutes back to the second font's (Noto's) glyph whenever a language system
+    is active (fontTools/merge/layout.py `GSUB.merge`). That lookup is prepended to the
+    `locl` feature of *every* script in Noto's GSUB, hani/kana included. Uniscribe applies
+    `locl` for a Japanese run (OpenType language JAN) but not for a bare Latin run, so a
+    Latin word touching Japanese silently gets its glyphs swapped Inter->Noto — this is
+    the "英数字が全角と隣接すると Noto 由来になる" bug (standalone Latin stays Inter).
+
+    Removing the overlapping codepoints from Noto here means the merge sees no conflict,
+    synthesises no `locl`, and Inter wins cleanly in *every* context. Inter already won
+    these in cmap (merge order is Inter-first), so nothing visible changes except the
+    unwanted back-substitution disappears; the now-unreachable Noto duplicates are subset
+    away. Deferred CJK symbols (①②, Roman numerals, box shapes) were already removed from
+    Inter's cmap, so they are absent from `inter_cps` and stay mapped to Noto."""
+    removed = 0
+    for table in noto_font["cmap"].tables:
+        for cp in list(table.cmap.keys()):
+            if cp in inter_cps:
+                del table.cmap[cp]
+                removed += 1
+    return removed
+
+
 def use_numeric_colon(font: TTFont) -> None:
     """Bake Inter's figure-height colon into the default `colon` glyph.
 
@@ -364,10 +391,13 @@ def apply_cjk_tracking(font: TTFont, units: int) -> None:
         _shift_and_setwidth(font, gn, -round(units / 2), adv - units)
 
 
-def prepare_noto(weight: int, italic: bool, cfg: dict, path: str) -> None:
+def prepare_noto(weight: int, italic: bool, cfg: dict, path: str,
+                 inter_cps: set | None = None) -> None:
     font = TTFont(NOTO)
     instancer.instantiateVariableFont(font, {"wght": weight}, inplace=True)
     cleanup_tables(font)
+    if inter_cps:
+        defer_latin_to_inter(font, inter_cps)
     apply_palt(font, float(cfg.get("cjk_tighten", 1.0)))
     apply_cjk_tracking(font, int(cfg.get("cjk_tracking", 0)))
     if italic:
@@ -546,7 +576,11 @@ def build_face(weight: int, italic: bool, cfg: dict, tmpdir: str) -> str:
     inter_path = os.path.join(tmpdir, f"inter_{stem}.ttf")
     noto_path = os.path.join(tmpdir, f"noto_{stem}.ttf")
     prepare_inter(weight, italic, cfg, inter_path)
-    prepare_noto(weight, italic, cfg, noto_path)
+    # Codepoints Inter still maps (after its own defer). Dropping these from Noto's cmap
+    # before the merge stops fontTools from synthesising a `locl` that swaps Inter's Latin
+    # back to Noto's inside CJK-shaped (JAN) runs. See defer_latin_to_inter().
+    inter_cps = set(TTFont(inter_path).getBestCmap().keys())
+    prepare_noto(weight, italic, cfg, noto_path, inter_cps)
 
     merged = Merger().merge([inter_path, noto_path])  # Inter first -> Latin wins
 
