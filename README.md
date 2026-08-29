@@ -70,6 +70,7 @@ python build.py --slant 3 --inter-yshift -8 --inter-scale 1.0
 | `inter_tracking` | （プレビュー用の目安）Latin 字間 | `0` |
 | `inter_weights` | **和文ウェイト→Interウェイトの対応表**。Inter は同じ公称ウェイトでも太く見えるため、各 Noto ウェイトに合う Inter の wght を個別指定 | 恒等 |
 | `inter_weight_offset` | `inter_weights` に無いウェイトへ一律加算（例 `-100` で Inter を細く） | `0` |
+| `numeric_colon` | 半角コロン `:` を Inter の数字センター字形（`colon.case`）で焼き込む。`12:34` の `:` が数字の縦中央に来る。`false` で低い本文コロンのまま | `true` |
 | `cjk_tighten` | Noto の `palt`（プロポーショナル字幅）を既定字幅に焼き込む割合 0–1。かな・約物が詰まり、漢字は全角維持。約物は半角化 | `1.0` |
 | `cjk_tracking` | 全 CJK グリフを一律に詰める追加量（units、+で詰め） | `0` |
 | `variants` | 生成するファミリー群。各要素が `family` と `cjk_tighten` を上書き（既定は Ninter=ベタ / Ninter P=詰め の2種） | 2種 |
@@ -102,6 +103,7 @@ python build.py --jobs 1   # 逐次（デバッグ用）
 3. **Inter 位置合わせ** — `inter_yshift` / `inter_scale` を適用。
 4. **CJK スラント** — イタリック面のみ Noto を `slant_angle` でシアー（アウトライン＋合成グリフのオフセットを変換、送り幅は保持）。
 5. **CJK文脈記号を Noto へ** — 丸数字（①②）・ローマ数字・囲み/幾何記号や、Inter が特大に描く記号は、Inter の cmap から外して **Noto の全角版**を採用（`defer_cjk_symbols`）。Latin の約物（— … ‰ ™ 等）は Inter のまま。
+   - **半角コロンの数字センター化**（`numeric_colon`）— Inter の既定 `:` は本文用で低い位置にあり、`12:34` の `:` を数字の縦中央へ上げる字形（`colon.case`）は本来 `case`/`calt` 機能で切り替わる。だが PowerPoint はこの機能を確実には適用せず、サブセットで無エンコードの `colon.case` が落ちることもあるため、**上げた字形を既定の `:` に焼き込む**（tabular の `colon.tf` も同様）。アプリの機能対応に依存せず常に数字センターになる。
 6. **マージ** — `fontTools.merge`（Inter を先に）で Latin は Inter、CJK は Noto。cmap 競合は先勝ちで Latin が Inter になる。
 7. **スクリプト機能の統一** — Inter の Latin OpenType 機能（kern, liga, ss01-08, cv*, tnum, frac 等）を **CJK スクリプト（kana/hani）からも参照可能に**する。Illustrator 等は混植行を CJK スクリプトでシェーピングするため、これをしないと同一行に和文がある英字で欧文機能が無効化される（gen-interface-jp #1 の教訓）。
 8. **メトリクス統一** — 行送りは Noto に合わせ（typo 880/-120、win 1160/288）、CJK が切れない 1em 行に。
