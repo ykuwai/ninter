@@ -71,6 +71,7 @@ def load_config(cli: argparse.Namespace) -> dict:
         "inter_weights": {}, "inter_weight_offset": 0,
         "cjk_tighten": 1.0, "cjk_tracking": 0, "defer_cjk_symbols": True,
         "numeric_colon": True,
+        "palt_keep_fullwidth": "、。，．",
         "variants": [
             {"family": "Ninter", "cjk_tighten": 0.0},     # no tsume (full-width beta)
             {"family": "Ninter P", "cjk_tighten": 1.0},   # tsume (palt baked)
@@ -361,15 +362,18 @@ def _shift_and_setwidth(font: TTFont, gname: str, dx: int, new_adv: int) -> None
     hmtx[gname] = (new_adv, getattr(g, "xMin", 0))
 
 
-def apply_palt(font: TTFont, factor: float) -> None:
+def apply_palt(font: TTFont, factor: float, keep_fullwidth: str = "") -> None:
     """Bake `factor` (0..1) of the palt proportional metrics into default advances,
     so kana/punctuation tighten without the app needing palt enabled. factor=1 is the
-    full designer proportional; kanji get ~0 so they stay full-width."""
+    full designer proportional; kanji get ~0 so they stay full-width.
+    Characters in `keep_fullwidth` (e.g. the 句読点 、。) are left at full width."""
     if factor <= 0:
         return
     adjust = _read_palt(font)
+    cmap = font.getBestCmap()
+    keep = {cmap[ord(ch)] for ch in keep_fullwidth if ord(ch) in cmap}
     for gn, (dadv, dpla) in adjust.items():
-        if gn not in font["glyf"]:
+        if gn not in font["glyf"] or gn in keep:
             continue
         adv, _ = font["hmtx"][gn]
         _shift_and_setwidth(font, gn, round(dpla * factor), adv + round(dadv * factor))
@@ -398,7 +402,8 @@ def prepare_noto(weight: int, italic: bool, cfg: dict, path: str,
     cleanup_tables(font)
     if inter_cps:
         defer_latin_to_inter(font, inter_cps)
-    apply_palt(font, float(cfg.get("cjk_tighten", 1.0)))
+    apply_palt(font, float(cfg.get("cjk_tighten", 1.0)),
+               cfg.get("palt_keep_fullwidth", ""))
     apply_cjk_tracking(font, int(cfg.get("cjk_tracking", 0)))
     if italic:
         slant_font(font, float(cfg["slant_angle"]))
