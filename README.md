@@ -49,21 +49,32 @@ MS ゴシックと MS P ゴシックの関係と同じように、2つのファ�
 
 完成済みのフォントがこのリポジトリの `build` フォルダに入っているので、ビルドは不要です。管理者権限も必要ありません。
 
-### 手順
+### ZIP ファイルからインストールする
 
-1. このリポジトリをダウンロードします。GitHub の緑色の「Code」ボタンから「Download ZIP」を選び、展開してください。Git を使える方は `git clone` でも大丈夫です。
-2. 展開したフォルダで PowerShell を開き、次のコマンドを実行します。
+Git を使わない方は、この方法が簡単です。ダウンロードは全部で 100MB を超えるので、少し時間がかかります。
+
+1. GitHub のリポジトリページで、緑色の「Code」ボタンを押し、「Download ZIP」を選びます。
+2. ダウンロードした ZIP ファイルを右クリックして「すべて展開」を選び、わかりやすい場所（デスクトップなど）に展開します。
+3. 展開したフォルダを開き、中の `scripts` フォルダが見える状態にします。
+4. フォルダ内の何もない場所で右クリックし、「ターミナルで開く」を選びます。
+5. 次のコマンドを貼り付けて Enter キーを押します。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 ```
 
-3. 開いている Word や PowerPoint があれば、いったん終了して開き直します。
-4. フォントの一覧から **Ninter** または **Ninter P** を選びます。
+6. 「Ninter: 36 updated」のような表示が出たら完了です。開いている Word や PowerPoint があれば、いったん終了して開き直します。
+7. フォントの一覧から **Ninter** または **Ninter P** を選びます。
 
-### 手動でインストールしたい場合
+インストール後は、展開したフォルダを削除しても大丈夫です。
 
-`build` フォルダにある `.ttf` ファイルを選び、右クリックして「ユーザーのみインストール」を選んでも使えます。ただし、Ctrl+I や Ctrl+B を正しく連動させるには、同じファミリーのファイルをまとめてインストールしてください。
+### Git を使う場合
+
+```bash
+git clone https://github.com/ykuwai/ninter.git
+cd ninter
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
 
 ### アンインストール
 
@@ -71,17 +82,43 @@ powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1 -Uninstall
 ```
 
-### Mac や Linux の場合
+### 手動でインストールしたい場合
 
-`.ttf` ファイルを通常のフォントと同じ方法でインストールすれば使えます。ただし、動作確認は Windows の Word と PowerPoint で行っています。
+`build` フォルダにある `.ttf` ファイルをすべて選び、右クリックして「ユーザーのみインストール」を選んでも使えます。Ctrl+I や Ctrl+B を正しく連動させるため、同じファミリーのファイルはまとめてインストールしてください。
+
+---
+
+## インストール方法（Mac）
+
+Windows と同じく、ZIP をダウンロードして展開すれば、ビルドなしで使えます。
+
+### Font Book でインストールする
+
+1. ZIP を展開して、中の `build` フォルダを開きます。
+2. `Ninter` で始まる `.ttf` ファイルをすべて選択します。`NinterP` で始まるファイルも使いたい場合は、あわせて選びます。
+3. 選んだファイルをダブルクリックすると Font Book が開くので、「フォントをインストール」を押します。
+4. 確認の画面が出たら、そのまま進めます。
+5. Word や PowerPoint を終了して開き直し、**Ninter** または **Ninter P** を選びます。
+
+### ターミナルでインストールする
+
+展開したフォルダで次のコマンドを実行すると、ユーザー単位でまとめてインストールできます。
+
+```bash
+cp build/*.ttf ~/Library/Fonts/
+```
+
+アンインストールするときは、`~/Library/Fonts` から `Ninter` で始まるファイルを削除します。
+
+Mac では、斜体は **Command+I**、太字は **Command+B** です。なお、動作確認は Windows の Word と PowerPoint で行っています。Mac での見え方は、確認できしだいここに追記します。
 
 ---
 
 ## 使い方
 
 1. 文字を選択して、フォント名に **Ninter**（または **Ninter P**）を指定します。
-2. 強調したい部分を選んで **Ctrl+I** を押すと、日本語も欧文も自然な斜体になります。
-3. 太字にしたいときは **Ctrl+B** を押します。
+2. 強調したい部分を選んで **Ctrl+I**（Mac では Command+I）を押すと、日本語も欧文も自然な斜体になります。
+3. 太字にしたいときは **Ctrl+B**（Mac では Command+B）を押します。
 4. Regular と Bold 以外の太さは、フォント一覧の「Ninter Light」「Ninter P SemiBold」などから選べます。
 
 ---
