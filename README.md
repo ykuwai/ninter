@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/hero.png" alt="Ninter 日本語にも、きれいな斜体を。" width="100%"></p>
+
 # Ninter
 
 **日本語にも、きれいな斜体を。**
@@ -14,6 +16,8 @@ PowerPoint や Word で日本語に斜体（Ctrl+I）をかけると、多くの
 
 Ninter には本物の斜体フォントが用意されています。日本語は約5.5度だけ控えめに傾けるので、読みやすさを保ったまま、強調したい部分にさりげなく動きを出せます。欧文は Inter 本来の斜体になります。
 
+![ふつうの擬似斜体と Ninter の斜体の比較](docs/images/compare.png)
+
 ### 2. 英数字が美しい
 
 アルファベット、数字、記号には、画面での読みやすさに定評のある Inter を使っています。日本語の中に英単語や数字が混ざっても、文字の大きさや高さがそろい、違和感が出にくくなっています。
@@ -29,6 +33,8 @@ Thin から Black まで 9段階の太さがあり、それぞれに斜体があ
 | 太さ | Thin / ExtraLight / Light / Regular / Medium / SemiBold / Bold / ExtraBold / Black |
 |---|---|
 | 斜体 | すべての太さに対応 |
+
+![Light から Black までの斜体](docs/images/weights.png)
 
 Ctrl+B で太字、Ctrl+I で斜体という、いつもの操作がそのまま使えます。
 

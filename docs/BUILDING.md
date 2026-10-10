@@ -116,3 +116,7 @@ Ninter が既に優位な点：**9ウェイト（Black 有）・イタリック�
 ## ライセンス
 
 Noto Sans JP（© Google）と Inter（© The Inter Project Authors）はともに **SIL Open Font License 1.1**。派生の Ninter も OFL 1.1 に従います。`sources/` の元フォントおよび各配布物のライセンスを尊重してください。
+
+## README 用の画像
+
+`docs/images/src/` の HTML を Edge などのヘッドレスブラウザで撮影すると、README の画像（`docs/images/*.png`）を作り直せます。フォントは `build/` の実ファイルを読み込みます。擬似斜体の比較には `sources/` の Noto Sans JP を使います。

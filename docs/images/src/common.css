@@ -1,0 +1,14 @@
+/* 画像生成用。フォントは build/ の実ファイルを読み込む。擬似斜体の比較には sources/ の Noto Sans JP を使う */
+@font-face{font-family:"N";font-weight:300;font-style:normal;src:url("../../../build/Ninter-Light.ttf")}
+@font-face{font-family:"N";font-weight:300;font-style:italic;src:url("../../../build/Ninter-LightItalic.ttf")}
+@font-face{font-family:"N";font-weight:400;font-style:normal;src:url("../../../build/Ninter-Regular.ttf")}
+@font-face{font-family:"N";font-weight:400;font-style:italic;src:url("../../../build/Ninter-RegularItalic.ttf")}
+@font-face{font-family:"N";font-weight:700;font-style:normal;src:url("../../../build/Ninter-Bold.ttf")}
+@font-face{font-family:"N";font-weight:700;font-style:italic;src:url("../../../build/Ninter-BoldItalic.ttf")}
+@font-face{font-family:"N";font-weight:900;font-style:normal;src:url("../../../build/Ninter-Black.ttf")}
+@font-face{font-family:"N";font-weight:900;font-style:italic;src:url("../../../build/Ninter-BlackItalic.ttf")}
+@font-face{font-family:"NP";font-weight:700;font-style:italic;src:url("../../../build/NinterP-BoldItalic.ttf")}
+@font-face{font-family:"Plain";font-weight:400;font-style:normal;src:url("../../../sources/NotoSansJP[wght].ttf")}
+@font-face{font-family:"Plain";font-weight:700;font-style:normal;src:url("../../../sources/NotoSansJP[wght].ttf")}
+*{margin:0;box-sizing:border-box}
+body{font-family:"N","Segoe UI",sans-serif;color:#1b1f2a}
