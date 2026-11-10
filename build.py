@@ -22,6 +22,7 @@ Outputs land in ./build.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import math
 import os
@@ -29,6 +30,7 @@ import shutil
 import tempfile
 
 from fontTools.ttLib import TTFont
+from fontTools.ttLib.tables._g_l_y_f import Glyph
 from fontTools.varLib import instancer
 from fontTools.ttLib.scaleUpem import scale_upem
 from fontTools.merge import Merger
@@ -71,7 +73,7 @@ def load_config(cli: argparse.Namespace) -> dict:
         "inter_weights": {}, "inter_weight_offset": 0,
         "cjk_tighten": 1.0, "cjk_tracking": 0, "defer_cjk_symbols": True,
         "numeric_colon": True,
-        "palt_keep_fullwidth": "、。，．",
+        "palt_keep_fullwidth": "、。，．", "palt_keep_tighten": 0.0,
         "variants": [
             {"family": "Ninter", "cjk_tighten": 0.0},     # no tsume (full-width beta)
             {"family": "Ninter P", "cjk_tighten": 1.0},   # tsume (palt baked)
@@ -133,11 +135,16 @@ def noto_codepoints() -> set:
     return _NOTO_CPS
 
 
-def defer_cjk_symbols_to_noto(inter_font: TTFont) -> int:
+def defer_cjk_symbols_to_noto(inter_font: TTFont, oversized_cps: frozenset | None = None) -> int:
     """Drop from Inter's cmap the CJK-context symbols (circled numbers ①②, Roman
     numerals, box/geometric shapes, and any oversized symbol) that Noto also covers,
     so the merge takes Noto's consistent full-width versions instead of Inter's
-    oversized ones. Call while Inter is at 1000 upm, before inter_scale."""
+    oversized ones. Call while Inter is at 1000 upm, before inter_scale.
+
+    `oversized_cps` fixes which codepoints count as oversized (see
+    oversized_inter_symbols). Without it the test uses this instance's own advances,
+    which grow with weight and would send a symbol such as ‰ to Noto only in the
+    heavier faces."""
     noto = noto_codepoints()
     hmtx = inter_font["hmtx"]
     remove = set()
@@ -146,7 +153,10 @@ def defer_cjk_symbols_to_noto(inter_font: TTFont) -> int:
             if cp not in noto or cp < 0x2000:
                 continue
             in_block = any(lo <= cp <= hi for lo, hi in DEFER_BLOCKS)
-            oversized = gn in hmtx.metrics and hmtx[gn][0] > DEFER_SIZE_THRESHOLD
+            if oversized_cps is not None:
+                oversized = cp in oversized_cps
+            else:
+                oversized = gn in hmtx.metrics and hmtx[gn][0] > DEFER_SIZE_THRESHOLD
             if in_block or oversized:
                 remove.add(cp)
     for table in inter_font["cmap"].tables:
@@ -154,6 +164,24 @@ def defer_cjk_symbols_to_noto(inter_font: TTFont) -> int:
             if cp in remove:
                 del table.cmap[cp]
     return len(remove)
+
+
+@functools.lru_cache(maxsize=None)
+def _oversized_at(italic: bool, wght: float, opsz: float) -> frozenset:
+    font = TTFont(INTER_ITALIC if italic else INTER_ROMAN)
+    instancer.instantiateVariableFont(font, {"wght": wght, "opsz": opsz}, inplace=True)
+    scale_upem(font, 1000)
+    hmtx = font["hmtx"]
+    return frozenset(cp for cp, gn in font.getBestCmap().items()
+                     if gn in hmtx.metrics and hmtx[gn][0] > DEFER_SIZE_THRESHOLD)
+
+
+def oversized_inter_symbols(italic: bool, cfg: dict) -> frozenset:
+    """Codepoints whose Inter glyph is wider than DEFER_SIZE_THRESHOLD at the lightest
+    Inter weight the family uses. Advances only grow with weight, so these are the
+    symbols that are oversized at every weight, and every face defers the same set."""
+    lightest = min(resolve_inter_weight(w, cfg) for w in cfg["weights"])
+    return _oversized_at(italic, lightest, float(cfg["opsz"]))
 
 
 def defer_latin_to_inter(noto_font: TTFont, inter_cps: set) -> int:
@@ -292,7 +320,7 @@ def prepare_inter(weight: int, italic: bool, cfg: dict, path: str) -> None:
     scale_upem(font, 1000)
     cleanup_tables(font)
     if cfg.get("defer_cjk_symbols", True):
-        defer_cjk_symbols_to_noto(font)
+        defer_cjk_symbols_to_noto(font, oversized_inter_symbols(italic, cfg))
     if cfg.get("numeric_colon", True):
         use_numeric_colon(font)
     transform_inter(font, int(cfg["inter_yshift"]), float(cfg["inter_scale"]))
@@ -313,7 +341,13 @@ def _cjk_codepoints(font: TTFont) -> set:
 
 def _read_palt(font: TTFont) -> dict:
     """Return {glyphName: (dXAdvance, dXPlacement)} from the font's `palt` feature —
-    the designer's proportional (tightened) metrics for CJK/kana/punctuation."""
+    the designer's proportional (tightened) metrics for CJK/kana/punctuation.
+
+    Noto Sans JP's palt has a second lookup from about Bold upward (a GPOS
+    FeatureVariation that the instancer resolves into the feature) which corrects
+    the first one for heavier glyphs. A shaper applies every lookup in turn, so the
+    values add up; we sum them the same way. Within one lookup only the first
+    subtable covering a glyph applies."""
     if "GPOS" not in font:
         return {}
     gpos = font["GPOS"].table
@@ -323,27 +357,29 @@ def _read_palt(font: TTFont) -> dict:
             palt_lookups.update(fr.Feature.LookupListIndex)
     adjust = {}
 
-    def handle_singlepos(st):
+    def values(st):
         if st.Format == 1:
             for g in st.Coverage.glyphs:
-                adjust[g] = (getattr(st.Value, "XAdvance", 0) or 0,
-                             getattr(st.Value, "XPlacement", 0) or 0)
+                yield g, st.Value
         else:
-            for i, g in enumerate(st.Coverage.glyphs):
-                v = st.Value[i]
-                adjust[g] = (getattr(v, "XAdvance", 0) or 0,
-                             getattr(v, "XPlacement", 0) or 0)
+            for g, v in zip(st.Coverage.glyphs, st.Value):
+                yield g, v
 
-    for li in palt_lookups:
+    for li in sorted(palt_lookups):
         lk = gpos.LookupList.Lookup[li]
+        seen = set()
         for st in lk.SubTable:
             if lk.LookupType == 9:              # Extension -> deref
                 st = st.ExtSubTable
-                lt = st.LookupType if hasattr(st, "LookupType") else 1
-            else:
-                lt = lk.LookupType
-            if getattr(st, "Coverage", None) is not None and hasattr(st, "Format"):
-                handle_singlepos(st)
+            if getattr(st, "Coverage", None) is None or not hasattr(st, "Format"):
+                continue
+            for g, v in values(st):
+                if g in seen:
+                    continue
+                seen.add(g)
+                adv, pla = adjust.get(g, (0, 0))
+                adjust[g] = (adv + (getattr(v, "XAdvance", 0) or 0),
+                             pla + (getattr(v, "XPlacement", 0) or 0))
     return adjust
 
 
@@ -362,21 +398,26 @@ def _shift_and_setwidth(font: TTFont, gname: str, dx: int, new_adv: int) -> None
     hmtx[gname] = (new_adv, getattr(g, "xMin", 0))
 
 
-def apply_palt(font: TTFont, factor: float, keep_fullwidth: str = "") -> None:
+def apply_palt(font: TTFont, factor: float, keep_fullwidth: str = "",
+               keep_factor: float = 0.0) -> None:
     """Bake `factor` (0..1) of the palt proportional metrics into default advances,
     so kana/punctuation tighten without the app needing palt enabled. factor=1 is the
     full designer proportional; kanji get ~0 so they stay full-width.
-    Characters in `keep_fullwidth` (e.g. the 句読点 、。) are left at full width."""
+    Characters in `keep_fullwidth` (e.g. the 句読点 、。) get only `keep_factor` of it:
+    0 leaves them full width, 0.5 makes Noto's 、。 750 units wide instead of 500."""
     if factor <= 0:
         return
     adjust = _read_palt(font)
     cmap = font.getBestCmap()
     keep = {cmap[ord(ch)] for ch in keep_fullwidth if ord(ch) in cmap}
     for gn, (dadv, dpla) in adjust.items():
-        if gn not in font["glyf"] or gn in keep:
+        if gn not in font["glyf"]:
+            continue
+        f = factor * keep_factor if gn in keep else factor
+        if not f:
             continue
         adv, _ = font["hmtx"][gn]
-        _shift_and_setwidth(font, gn, round(dpla * factor), adv + round(dadv * factor))
+        _shift_and_setwidth(font, gn, round(dpla * f), adv + round(dadv * f))
     # neutralise palt so an app that enables it can't tighten a second time
     for fr in font["GPOS"].table.FeatureList.FeatureRecord:
         if fr.FeatureTag in ("palt", "vpal", "halt", "vhal"):
@@ -403,7 +444,8 @@ def prepare_noto(weight: int, italic: bool, cfg: dict, path: str,
     if inter_cps:
         defer_latin_to_inter(font, inter_cps)
     apply_palt(font, float(cfg.get("cjk_tighten", 1.0)),
-               cfg.get("palt_keep_fullwidth", ""))
+               cfg.get("palt_keep_fullwidth", ""),
+               float(cfg.get("palt_keep_tighten", 0.0)))
     apply_cjk_tracking(font, int(cfg.get("cjk_tracking", 0)))
     if italic:
         slant_font(font, float(cfg["slant_angle"]))
@@ -446,6 +488,120 @@ def unify_script_features(font: TTFont) -> None:
                 merged = list(dict.fromkeys(list(ls.FeatureIndex) + add))
                 ls.FeatureIndex = merged
                 ls.FeatureCount = len(merged)
+
+
+def repair_langsys(font: TTFont) -> None:
+    """Repair the feature lists of each script and language after merging.
+
+    Subsetting leaves the same feature listed several times under kana/hani. OTS, the
+    font checker in browsers, rejects a language that lists more features than the font
+    has, so duplicates are dropped. The first occurrence is the one HarfBuzz uses.
+
+    The JAN language of the Western scripts gets the same features as their default.
+
+    Merging leaves latn/cyrl/grek with a JAN entry that came from Noto and holds only
+    Noto's features. HarfBuzz uses that entry whenever the text language is Japanese, so
+    a page with lang="ja", or a browser set to Japanese, lost Inter's kerning and its
+    OpenType features on Latin text. JAN keeps its own locl, which is the one thing the
+    default language does not already have.
+
+    kana/hani list Noto's kern ahead of the fuller one that also carries Inter's lookups,
+    and HarfBuzz takes the first feature with a given tag. Moving the fuller kern first
+    restores kerning for digits and punctuation inside Japanese text."""
+    for tag in ("GSUB", "GPOS"):
+        if tag not in font:
+            continue
+        for script in font[tag].table.ScriptList.ScriptRecord:
+            entries = [script.Script.DefaultLangSys] + [r.LangSys for r in script.Script.LangSysRecord]
+            for entry in filter(None, entries):
+                entry.FeatureIndex = list(dict.fromkeys(entry.FeatureIndex))
+                entry.FeatureCount = len(entry.FeatureIndex)
+    if "GPOS" in font:
+        table = font["GPOS"].table
+        records = table.FeatureList.FeatureRecord
+        for script in table.ScriptList.ScriptRecord:
+            if script.ScriptTag not in ("kana", "hani"):
+                continue
+            entries = [script.Script.DefaultLangSys] + [r.LangSys for r in script.Script.LangSysRecord]
+            for entry in filter(None, entries):
+                kerns = [i for i in entry.FeatureIndex if records[i].FeatureTag == "kern"]
+                if not kerns:
+                    continue
+                lookups = lambda i: set(records[i].Feature.LookupListIndex)
+                fullest = max(kerns, key=lambda i: len(lookups(i)))
+                if lookups(fullest) >= lookups(kerns[0]):
+                    entry.FeatureIndex = [fullest] + [i for i in entry.FeatureIndex if i != fullest]
+                    entry.FeatureCount = len(entry.FeatureIndex)
+    for tag in ("GSUB", "GPOS"):
+        if tag not in font:
+            continue
+        table = font[tag].table
+        records = table.FeatureList.FeatureRecord
+        for script in table.ScriptList.ScriptRecord:
+            default = script.Script.DefaultLangSys
+            if script.ScriptTag not in ("latn", "cyrl", "grek") or default is None:
+                continue
+            for record in script.Script.LangSysRecord:
+                if record.LangSysTag != "JAN ":
+                    continue
+                own = [i for i in record.LangSys.FeatureIndex if records[i].FeatureTag == "locl"]
+                inherited = [i for i in default.FeatureIndex if records[i].FeatureTag != "locl"]
+                merged = list(dict.fromkeys(own + inherited))
+                record.LangSys.FeatureIndex = merged
+                record.LangSys.FeatureCount = len(merged)
+
+
+def retarget_width_features(font: TTFont) -> None:
+    """Point fwid/hwid/pwid at the merged Latin glyphs.
+
+    Noto's width features convert Noto's own ASCII glyphs, which the merge replaces with
+    Inter's, so A to Ａ stopped working and Ａ converted back to Noto's letter."""
+    table = font["GSUB"].table
+    subtables = {"fwid": [], "hwid": [], "pwid": []}
+    for record in table.FeatureList.FeatureRecord:
+        if record.FeatureTag not in subtables:
+            continue
+        for index in record.Feature.LookupListIndex:
+            for subtable in table.LookupList.Lookup[index].SubTable:
+                subtable = getattr(subtable, "ExtSubTable", subtable)
+                if hasattr(subtable, "mapping"):
+                    subtables[record.FeatureTag].append(subtable)
+    half_forms = {}
+    for subtable in subtables["hwid"]:
+        half_forms.update(subtable.mapping)
+    cmap = font.getBestCmap()
+    for codepoint in range(0x21, 0x7F):
+        latin, full = cmap.get(codepoint), cmap.get(codepoint + 0xFEE0)
+        if not latin or not full:
+            continue
+        pairs = {"fwid": (latin, full), "hwid": (latin, half_forms.get(full)), "pwid": (full, latin)}
+        for feature, (source, target) in pairs.items():
+            if target:
+                for subtable in subtables[feature]:
+                    subtable.mapping[source] = target
+
+
+def add_zero_width_glyphs(font: TTFont) -> None:
+    """Add empty glyphs for ZWNJ, ZWJ and the variation selectors U+FE00 to U+FE0F.
+
+    The font covers symbols such as U+2764 that are followed by a selector in emoji
+    sequences. Browsers hide a selector the font lacks, but literal composers such as
+    Illustrator draw it as a missing-glyph box."""
+    glyf = font["glyf"]
+    hmtx = font["hmtx"]
+    encoded = font.getBestCmap()
+    subtables = [t for t in font["cmap"].tables if t.isUnicode() and t.format in (4, 12)]
+    for codepoint in [0x200C, 0x200D, *range(0xFE00, 0xFE10)]:
+        if codepoint in encoded:
+            continue
+        name = f"uni{codepoint:04X}"
+        if name in glyf.glyphs:  # Inter already uses uni200D for its U+FEFF glyph
+            name += ".defaultIgnorable"
+        glyf[name] = Glyph()
+        hmtx[name] = (0, 0)
+        for subtable in subtables:
+            subtable.cmap[codepoint] = name
+    font.setGlyphOrder(glyf.glyphOrder)
 
 
 def fix_metrics(font: TTFont) -> None:
@@ -590,6 +746,7 @@ def build_face(weight: int, italic: bool, cfg: dict, tmpdir: str) -> str:
     merged = Merger().merge([inter_path, noto_path])  # Inter first -> Latin wins
 
     unify_script_features(merged)   # Latin features reachable from kana/hani (gen #1)
+    retarget_width_features(merged)
     fix_metrics(merged)
     set_names(merged, weight, italic, cfg)
     set_style_bits(merged, weight, italic, cfg)
@@ -603,6 +760,8 @@ def build_face(weight: int, italic: bool, cfg: dict, tmpdir: str) -> str:
 
     out_name = cfg["family"].replace(" ", "") + "-" + tag + ".ttf"
     out_path = os.path.join(OUT, out_name)
+    add_zero_width_glyphs(merged)
+    repair_langsys(merged)   # after subsetting, which is what creates the duplicates
     merged.save(out_path)
     return out_name
 
