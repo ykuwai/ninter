@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ninter</title>
+<meta name="description" content="Noto Sans JP と Inter を合わせて作った、斜体に対応した日本語フォントです。9 つの太さすべてに斜体があり、無料で使えます。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ninter-p@1.0.2/cdn/variable.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ninter@1.0.2/cdn/variable.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+JP:wght@100..900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="#top">Ninter</a>
+  <nav>
+    <a href="#mix">比較</a>
+    <a href="#italic">斜体</a>
+    <a href="#weight">太さ</a>
+    <a href="#slides">スライド</a>
+    <a href="#try">使う</a>
+    <a href="https://github.com/ykuwai/ninter">GitHub</a>
+    <button type="button" id="theme" class="theme" aria-label="明るい表示と暗い表示を切り替える">
+      <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+    </button>
+  </nav>
+</header>
+
+<main id="top">
+
+  <section class="hero" data-italic="true">
+    <div class="tilt" aria-hidden="true"><span class="tilt-label">5.5°</span></div>
+    <p class="hero-claim">斜体に対応した日本語フォント</p>
+    <h1 class="wordmark">Ninter</h1>
+    <p class="tagline">Noto Sans JP と Inter を合わせて作りました。9 つの太さすべてに斜体があります。</p>
+    <div class="controls">
+      <label class="dial">
+        <span class="dial-label">太さ</span>
+        <input id="hero-weight" type="range" min="100" max="900" step="1" value="900" aria-label="太さ">
+        <output id="hero-weight-value" class="dial-value">900</output>
+      </label>
+      <label class="switch">
+        <input id="hero-italic" type="checkbox" checked>
+        <span class="switch-track" aria-hidden="true"></span>
+        <span>斜体</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="block" id="mix">
+    <h2>並べるだけでは、そろいません。</h2>
+    <p class="lead">上が Ninter P、下の 2 つは比べるためのものです。</p>
+
+    <div class="mix" id="mix-rows">
+      <div class="mix-row mix-main">
+        <p class="mix-name"><strong>Ninter P</strong><span>欧文と和文の大きさと太さがそろいます</span></p>
+        <p class="mix-line mix-ninter">売上 Revenue +128%</p>
+        <p class="mix-body mix-ninter">新しい API で、Excel の表を PowerPoint に読み込めます。</p>
+      </div>
+      <p class="mix-divider">比べると</p>
+      <div class="mix-row">
+        <p class="mix-name">Noto Sans JP だけ</p>
+        <p class="mix-line mix-noto">売上 Revenue +128%</p>
+        <p class="mix-body mix-noto">新しい API で、Excel の表を PowerPoint に読み込めます。</p>
+      </div>
+      <div class="mix-row">
+        <p class="mix-name">Inter と Noto Sans JP</p>
+        <p class="mix-line mix-plain">売上 Revenue +128%</p>
+        <p class="mix-body mix-plain">新しい API で、Excel の表を PowerPoint に読み込めます。</p>
+      </div>
+    </div>
+    <div class="controls controls-wide">
+      <label class="dial">
+        <span class="dial-label">太さ</span>
+        <input id="mix-weight" type="range" min="100" max="900" step="1" value="700" aria-label="太さ">
+        <output id="mix-weight-value" class="dial-value">700</output>
+      </label>
+      <label class="switch">
+        <input id="mix-italic" type="checkbox">
+        <span class="switch-track" aria-hidden="true"></span>
+        <span>斜体</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="block" id="italic">
+    <h2>和文の傾きは 5.5°</h2>
+    <p class="lead">斜体のない和文フォントに Ctrl+I をかけると、Word や PowerPoint は字を 18° ほど機械的に傾けます。これが疑似イタリックで、和文が倒れて見えます。Ninter の和文は 5.5° で、欧文には Inter のイタリックを使います。</p>
+
+    <div class="stage" data-mode="ninter">
+      <div class="morph" lang="ja">
+        <span class="layer layer-up">日本語の斜体 Italic</span>
+        <span class="layer layer-it" aria-hidden="true">日本語の斜体 Italic</span>
+      </div>
+      <div class="stage-foot">
+        <div class="segments" role="group" aria-label="斜体の比較">
+          <button type="button" data-mode="upright">立体</button>
+          <button type="button" data-mode="faux">疑似イタリック</button>
+          <button type="button" data-mode="ninter" aria-pressed="true">Ninter の斜体</button>
+        </div>
+        <div class="gauge" aria-live="polite">
+          <span class="gauge-mark" aria-hidden="true"><i></i><b></b></span>
+          <output class="gauge-value">5.5°</output>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="weight">
+    <h2>太さは 9 段階あり、すべてに斜体があります。</h2>
+    <p class="lead">Word や PowerPoint では、太さごとに分かれたフォント名から選びます。Web では可変フォントも使えるので、100 から 900 のあいだの好きな太さを選べます。このページのつまみも、1 刻みで動きます。</p>
+    <div class="ladder" id="ladder"></div>
+  </section>
+
+  <section class="block" id="family">
+    <h2>Ninter P と Ninter は、詰め方だけが違います。</h2>
+    <p class="lead">字の形は同じです。ふだんは Ninter P をおすすめします。違いが分かりやすいのは、書名や引用のようにかぎ括弧で始まる行と、ふつうの字で始まる行が混ざるときです。点線は行の頭の位置です。</p>
+    <div class="columns">
+      <article class="column" style="font-family:'Ninter P Variable','Ninter P',sans-serif">
+        <h3>Ninter P</h3>
+        <p class="note">かぎ括弧の前が詰まるので、「で始まる行も、ほかの行と頭がそろいます。</p>
+        <div class="sample">
+          <p>「伝わる資料のつくり方」を読みました。</p>
+          <p>文字の大きさと余白の話が中心です。</p>
+          <p>「まず結論から書く」という一言が残り、</p>
+          <p>次の会議の PowerPoint で試すつもりです。</p>
+        </div>
+      </article>
+      <article class="column" style="font-family:'Ninter Variable','Ninter',sans-serif">
+        <h3>Ninter</h3>
+        <p class="note">かぎ括弧も全角の幅を取るので、「で始まる行だけ、頭が半文字分右にずれます。字を升目のようにそろえたいときに使います。</p>
+        <div class="sample">
+          <p>「伝わる資料のつくり方」を読みました。</p>
+          <p>文字の大きさと余白の話が中心です。</p>
+          <p>「まず結論から書く」という一言が残り、</p>
+          <p>次の会議の PowerPoint で試すつもりです。</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="block" id="slides">
+    <h2>スライドに入れると、こう見えます。</h2>
+    <p class="lead">Ninter P で組んだスライドです。文字をクリックすると書き換えられます。</p>
+
+    <div class="deck">
+      <div class="thumbs" id="thumbs" role="group" aria-label="スライドの一覧"></div>
+      <div class="screen">
+        <div class="slide slide-title" data-slide="0">
+          <p class="s-eyebrow" contenteditable="plaintext-only" spellcheck="false">2027 年度 事業計画</p>
+          <p class="s-title" contenteditable="plaintext-only" spellcheck="false">伝わる資料は、文字から整える。</p>
+          <p class="s-sub" contenteditable="plaintext-only" spellcheck="false"><em>Product Strategy Review</em> 営業企画部</p>
+        </div>
+        <div class="slide slide-number" data-slide="1" hidden>
+          <p class="s-head" contenteditable="plaintext-only" spellcheck="false">売上は前年の 2 倍を超えました</p>
+          <p class="s-figure" contenteditable="plaintext-only" spellcheck="false">+128%</p>
+          <p class="s-note" contenteditable="plaintext-only" spellcheck="false"><em>Year over Year</em> 2026 年 4 月から 9 月の合計</p>
+        </div>
+        <div class="slide slide-agenda" data-slide="2" hidden>
+          <p class="s-head" contenteditable="plaintext-only" spellcheck="false">本日の内容</p>
+          <ol class="s-list">
+            <li><span contenteditable="plaintext-only" spellcheck="false">市場の動き</span><em>Market Overview</em></li>
+            <li><span contenteditable="plaintext-only" spellcheck="false">新しい料金プラン</span><em>Pricing</em></li>
+            <li><span contenteditable="plaintext-only" spellcheck="false">来期の目標と体制</span><em>Next Steps</em></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="try">
+    <h2>文字を入れて、太さと斜体を試せます。</h2>
+    <p class="lead">下のコードは、選んだ設定に合わせて変わります。</p>
+
+    <div class="tester">
+      <div id="tester-text" class="tester-text" contenteditable="plaintext-only" spellcheck="false" role="textbox" aria-label="試し書き">ここに文字を入力 Type here</div>
+      <div class="controls controls-wide">
+        <div class="segments" role="group" aria-label="ファミリー">
+          <button type="button" data-family="ninter-p" aria-pressed="true">Ninter P</button>
+          <button type="button" data-family="ninter">Ninter</button>
+        </div>
+        <label class="dial">
+          <span class="dial-label">太さ</span>
+          <input id="tester-weight" type="range" min="100" max="900" step="1" value="700" aria-label="太さ">
+          <output id="tester-weight-value" class="dial-value">700</output>
+        </label>
+        <label class="dial">
+          <span class="dial-label">大きさ</span>
+          <input id="tester-size" type="range" min="24" max="120" step="2" value="60" aria-label="大きさ">
+          <output id="tester-size-value" class="dial-value">60</output>
+        </label>
+        <label class="switch">
+          <input id="tester-italic" type="checkbox" checked>
+          <span class="switch-track" aria-hidden="true"></span>
+          <span>斜体</span>
+        </label>
+      </div>
+      <div class="code">
+        <pre><code id="tester-code"></code></pre>
+        <button type="button" id="copy" class="copy">コピー</button>
+      </div>
+    </div>
+
+    <ul class="routes">
+      <li><h3>npm</h3><p><code>npm install ninter-p</code> で Vite や Next.js から読み込めます。Ninter は <code>ninter</code> です。</p></li>
+      <li><h3>パソコン</h3><p>Word や PowerPoint で使うときは、<a href="https://github.com/ykuwai/ninter#パソコンにインストールする">インストールの手順</a>をご覧ください。</p></li>
+      <li><h3>ライセンス</h3><p>SIL Open Font License 1.1 です。商用でも無料で使えます。</p></li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-text">
+    <p>名前の N は、Noto の N、日本の N、斜めの N です。</p>
+    <p>Noto Sans JP © Google と Inter © The Inter Project Authors をもとにしています。</p>
+  </div>
+  <nav>
+    <a href="https://github.com/ykuwai/ninter">GitHub</a>
+    <a href="https://www.npmjs.com/package/ninter-p">npm</a>
+  </nav>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>
