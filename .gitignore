@@ -16,3 +16,9 @@ Thumbs.db
 
 # User test artifacts (not source)
 *.pptx
+
+# Generated web packages, rebuild with scripts/build_web.py
+dist/
+
+# Variable fonts, attached to GitHub Releases. Rebuild with scripts/build_variable.py
+build/variable/
